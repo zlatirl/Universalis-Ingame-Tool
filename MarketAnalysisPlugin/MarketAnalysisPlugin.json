@@ -1,12 +1,12 @@
 {
-  "Author": "your name here",
-  "Name": "Sample Plugin",
-  "Punchline": "A short one-liner that shows up in /xlplugins.",
-  "Description": "A description that shows up in /xlplugins. List any major slash-command(s).",
+  "Author": "zlatirl",
+  "Name": "Market Analysis Plugin",
+  "Version": "1.0.0",
+  "Punchline": "A plugin that connects to Universalis API.",
+  "Description": "- /marketanalysis to bring up the Market Board window.",
   "ApplicableVersion": "any",
   "Tags": [
     "sample",
-    "plugin",
-    "goats"
+    "plugin"
   ]
 }

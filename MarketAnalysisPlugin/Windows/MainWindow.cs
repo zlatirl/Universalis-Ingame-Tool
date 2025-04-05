@@ -14,11 +14,17 @@ using Dalamud.Utility;
 
 namespace MarketAnalysisPlugin.Windows;
 
+// Displays market data, listings, and analysis for FFXIV items.
 public class MainWindow : Window, IDisposable
 {
+    // Reference to main plugin instance
     private Plugin Plugin;
+
+    // Search-related fields
     private string searchText = string.Empty;
     private List<Item> filteredItems = new List<Item>();
+
+    // Market data storage
     private Dictionary<uint, MarketListing[]> currentListings = new Dictionary<uint, MarketListing[]>();
     private Dictionary<uint, MarketListing[]> historyListings = new Dictionary<uint, MarketListing[]>();
 
@@ -33,6 +39,7 @@ public class MainWindow : Window, IDisposable
     private Dictionary<uint, string> categoryNames = new Dictionary<uint, string>();
     private Dictionary<uint, List<uint>> categoryItems = new Dictionary<uint, List<uint>>();
     private int expandedCategory = -1;
+    private bool isShowingSearchResults = false;
 
     // Server selection
     private string selectedWorld = string.Empty;
@@ -48,10 +55,11 @@ public class MainWindow : Window, IDisposable
     private bool isConnected = false;
     private string connectionStatus = "Not connected";
 
+    // Sets up the window, initialises the Universalis WebSocket client, and loads item categories.
     public MainWindow(Plugin plugin)
-        : base("Market Board",
-               ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.MenuBar)
+        : base("Market Board", ImGuiWindowFlags.MenuBar)
     {
+        // Set window constraints
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(800, 600),
@@ -60,8 +68,10 @@ public class MainWindow : Window, IDisposable
 
         Plugin = plugin;
 
-        // Initialize Universalis client
+        // Initialise Universalis WebSocket client for real-time market data
         universalisClient = new UniversalisClient();
+
+        // Set up event handlers for connection status changes
         universalisClient.OnConnected += (sender, args) => {
             isConnected = true;
             connectionStatus = "Connected to Universalis";
@@ -72,6 +82,7 @@ public class MainWindow : Window, IDisposable
             connectionStatus = "Disconnected from Universalis";
         };
 
+        // Set up handler for received market data from WebSocket
         universalisClient.OnMarketDataReceived += (sender, args) => {
             ProcessMarketData(args.RawMessage);
         };
@@ -80,7 +91,7 @@ public class MainWindow : Window, IDisposable
         LoadItemCategories();
     }
 
-
+    // Populates categoryNames and categoryItems dictionaries.
     private void LoadItemCategories()
     {
         try
@@ -104,6 +115,7 @@ public class MainWindow : Window, IDisposable
 
             foreach (var item in itemSheet)
             {
+                // Only add items that are searchable and belong to a valid category
                 if (item.ItemSearchCategory.RowId > 0 && categoryItems.ContainsKey(item.ItemUICategory.RowId))
                 {
                     categoryItems[item.ItemUICategory.RowId].Add(item.RowId);
@@ -153,14 +165,9 @@ public class MainWindow : Window, IDisposable
         {
             if (ImGui.BeginMenu("File"))
             {
-                if (ImGui.MenuItem("Settings"))
-                {
-                    Plugin.ToggleConfigUI();
-                }
-
                 if (ImGui.MenuItem("Exit"))
                 {
-                    IsOpen = false;
+                    IsOpen = false; // Close window
                 }
 
                 ImGui.EndMenu();
@@ -182,65 +189,127 @@ public class MainWindow : Window, IDisposable
 
     private void DrawSidebar()
     {
-        // Search bar
+        // Search bar with real-time updates
         ImGui.SetNextItemWidth(-1);
-        if (ImGui.InputTextWithHint("##SearchItems", "Search for item", ref searchText, 100, ImGuiInputTextFlags.EnterReturnsTrue))
+
+        // Store the previous search text to detect changes
+        string previousSearchText = searchText;
+
+        // Use standard input text without EnterReturnsTrue flag
+        ImGui.InputTextWithHint("##SearchItems", "Search for item", ref searchText, 100);
+
+        // Check if search text changed
+        if (searchText != previousSearchText)
         {
-            SearchItems();
+            // Only search if there's at least 2 characters (to avoid searching on every keystroke)
+            if (searchText.Length >= 2)
+            {
+                SearchItems();
+                isShowingSearchResults = true;
+            }
+            else if (string.IsNullOrWhiteSpace(searchText))
+            {
+                // Clear search results if search box is empty
+                isShowingSearchResults = false;
+                filteredItems.Clear();
+            }
         }
 
         // Advanced search button
         Vector4 advSearchColor = new Vector4(0.7f, 0.7f, 0.7f, 1.0f);
         ImGui.TextColored(advSearchColor, "Advanced Search");
         ImGui.SameLine();
-        ImGui.Button("🔍");
+        if (ImGui.Button("🔍"))
+        {
+            SearchItems();
+            isShowingSearchResults = !string.IsNullOrWhiteSpace(searchText);
+        }
 
-        // Category list with collapsible headers
+        // Show search results or categories
         if (ImGui.BeginChild("##Categories", new Vector2(-1, -1), true))
         {
-            var sortedCategories = categoryNames.OrderBy(c => c.Value).ToList();
-
-            foreach (var category in sortedCategories)
+            if (isShowingSearchResults)
             {
-                // Skip empty categories
-                if (!categoryItems.ContainsKey(category.Key) || categoryItems[category.Key].Count == 0)
-                    continue;
-
-                bool isExpanded = expandedCategory == category.Key;
-
-                // Category header with arrow indicator
-                ImGui.PushID((int)category.Key);
-                if (ImGui.Selectable($"▶ {category.Value}", isExpanded))
+                // Display search results
+                if (filteredItems.Count > 0)
                 {
-                    expandedCategory = isExpanded ? -1 : (int)category.Key;
-                }
-                ImGui.PopID();
+                    ImGui.Text($"Search Results: {filteredItems.Count} items found");
+                    ImGui.Separator();
 
-                // Show items if category is expanded
-                if (expandedCategory == category.Key)
-                {
-                    ImGui.Indent(20);
-
-                    var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
-                    if (itemSheet != null)
+                    foreach (var item in filteredItems)
                     {
-                        foreach (var itemId in categoryItems[category.Key])
+                        ImGui.PushID((int)item.RowId);
+                        if (ImGui.Selectable(item.Name.ToString(), selectedItemId == item.RowId))
                         {
-                            var item = itemSheet.GetRow(itemId);
-                            if (item.RowId == 0) continue;
-
-                            ImGui.PushID((int)itemId);
-                            if (ImGui.Selectable(item.Name.ToString(), selectedItemId == itemId))
-                            {
-                                selectedItem = item;
-                                selectedItemId = itemId;
-                                FetchMarketDataForItem(itemId);
-                            }
-                            ImGui.PopID();
+                            selectedItem = item;
+                            selectedItemId = item.RowId;
+                            selectedItemName = item.Name.ToString();
+                            FetchMarketDataForItem(item.RowId);
                         }
+                        ImGui.PopID();
                     }
+                }
+                else if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), "No items found matching your search.");
+                }
 
-                    ImGui.Unindent(20);
+                // Add button to clear search results
+                if (ImGui.Button("Clear Search"))
+                {
+                    searchText = string.Empty;
+                    isShowingSearchResults = false;
+                    filteredItems.Clear();
+                }
+            }
+            else
+            {
+                // Display categories (your existing category code)
+                var sortedCategories = categoryNames.OrderBy(c => c.Value).ToList();
+
+                foreach (var category in sortedCategories)
+                {
+                    // Skip empty categories
+                    if (!categoryItems.ContainsKey(category.Key) || categoryItems[category.Key].Count == 0)
+                        continue;
+
+                    bool isExpanded = expandedCategory == category.Key;
+
+                    // Category header with arrow indicator
+                    ImGui.PushID((int)category.Key);
+                    if (ImGui.Selectable($"▶ {category.Value}", isExpanded))
+                    {
+                        expandedCategory = isExpanded ? -1 : (int)category.Key;
+                    }
+                    ImGui.PopID();
+
+                    // Show items if category is expanded
+                    if (expandedCategory == category.Key)
+                    {
+                        ImGui.Indent(20);
+
+                        var itemSheet = Plugin.DataManager.GetExcelSheet<Item>();
+                        if (itemSheet != null)
+                        {
+                            foreach (var itemId in categoryItems[category.Key])
+                            {
+                                var item = itemSheet.GetRow(itemId);
+                                if (item.RowId == 0) continue;
+
+                                ImGui.PushID((int)itemId);
+                                if (ImGui.Selectable(item.Name.ToString(), selectedItemId == itemId))
+                                {
+                                    selectedItem = item;
+                                    selectedItemId = itemId;
+                                    selectedItemName = item.Name.ToString();
+                                    FetchMarketDataForItem(itemId);
+                                }
+                                ImGui.PopID();
+                            }
+                        }
+
+                        ImGui.Unindent(20);
+                    }
                 }
             }
 
@@ -356,96 +425,114 @@ public class MainWindow : Window, IDisposable
 
     private void DrawListingsTable(MarketListing[] listings, bool isHistory)
     {
-        if (ImGui.BeginTable("##ListingsTable", 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        try
         {
-            // Table headers
-            ImGui.TableSetupColumn("HQ", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 60);
-            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Retainer", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableHeadersRow();
-
-            // Table rows
-            foreach (var listing in listings)
+            // Create table with scrolling support
+            if (ImGui.BeginTable("##ListingsTable", 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
+                new Vector2(-1, ImGui.GetContentRegionAvail().Y * 0.4f)))
             {
-                ImGui.TableNextRow();
+                // Table headers
+                ImGui.TableSetupColumn("HQ", ImGuiTableColumnFlags.WidthFixed, 40);
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 60);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Retainer", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableHeadersRow();
 
-                // HQ indicator
-                ImGui.TableNextColumn();
-                if (listing.IsHQ)
+                // Table rows
+                foreach (var listing in listings)
                 {
-                    ImGui.Text("★"); // HQ symbol
+                    ImGui.TableNextRow();
+
+                    // HQ indicator
+                    ImGui.TableNextColumn();
+                    if (listing.IsHQ)
+                    {
+                        ImGui.Text("★"); // HQ symbol
+                    }
+
+                    // Price
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"₹{listing.PricePerUnit:N0}");
+
+                    // Quantity
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"{listing.Quantity}");
+
+                    // Total
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"₹{listing.TotalPrice:N0}");
+
+                    // Retainer
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"{listing.RetainerName} ★ Zodiark");
                 }
 
-                // Price
-                ImGui.TableNextColumn();
-                ImGui.Text($"₹{listing.PricePerUnit:N0}");
-
-                // Quantity
-                ImGui.TableNextColumn();
-                ImGui.Text($"{listing.Quantity}");
-
-                // Total
-                ImGui.TableNextColumn();
-                ImGui.Text($"₹{listing.TotalPrice:N0}");
-
-                // Retainer
-                ImGui.TableNextColumn();
-                ImGui.Text($"{listing.RetainerName} ★ Zodiark");
+                ImGui.EndTable(); // Make sure we always end the table
             }
+        }
+        catch (Exception ex)
+        {
 
-            ImGui.EndTable();
         }
     }
 
     private void DrawHistoryTable(MarketListing[] history)
     {
-        if (ImGui.BeginTable("##HistoryTable", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        try
         {
-            // Table headers
-            ImGui.TableSetupColumn("HQ", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 60);
-            ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Date", ImGuiTableColumnFlags.WidthFixed, 150);
-            ImGui.TableSetupColumn("Buyer", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableHeadersRow();
-
-            // Table rows
-            foreach (var sale in history)
+            // Create table with scrolling support
+            if (ImGui.BeginTable("##HistoryTable", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
+                new Vector2(-1, ImGui.GetContentRegionAvail().Y * 0.6f)))
             {
-                ImGui.TableNextRow();
+                // Table headers
+                ImGui.TableSetupColumn("HQ", ImGuiTableColumnFlags.WidthFixed, 40);
+                ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 60);
+                ImGui.TableSetupColumn("Total", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Date", ImGuiTableColumnFlags.WidthFixed, 150);
+                ImGui.TableSetupColumn("Buyer", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableHeadersRow();
 
-                // HQ indicator
-                ImGui.TableNextColumn();
-                if (sale.IsHQ)
+                // Table rows
+                foreach (var sale in history)
                 {
-                    ImGui.Text("★"); // HQ symbol
+                    ImGui.TableNextRow();
+
+                    // HQ indicator
+                    ImGui.TableNextColumn();
+                    if (sale.IsHQ)
+                    {
+                        ImGui.Text("★"); // HQ symbol
+                    }
+
+                    // Price
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"₹{sale.PricePerUnit:N0}");
+
+                    // Quantity
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"{sale.Quantity}");
+
+                    // Total
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"₹{sale.TotalPrice:N0}");
+
+                    // Date
+                    ImGui.TableNextColumn();
+                    ImGui.Text(sale.LastReviewTime.ToString("dd/MM/yyyy HH:mm:ss"));
+
+                    // Buyer
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"{sale.RetainerName} ★ Zodiark");
                 }
 
-                // Price
-                ImGui.TableNextColumn();
-                ImGui.Text($"₹{sale.PricePerUnit:N0}");
-
-                // Quantity
-                ImGui.TableNextColumn();
-                ImGui.Text($"{sale.Quantity}");
-
-                // Total
-                ImGui.TableNextColumn();
-                ImGui.Text($"₹{sale.TotalPrice:N0}");
-
-                // Date
-                ImGui.TableNextColumn();
-                ImGui.Text(sale.LastReviewTime.ToString("dd/MM/yyyy HH:mm:ss"));
-
-                // Buyer
-                ImGui.TableNextColumn();
-                ImGui.Text($"{sale.RetainerName} ★ Zodiark");
+                ImGui.EndTable(); // Make sure we always end the table
             }
-
-            ImGui.EndTable();
+        }
+        catch (Exception ex)
+        {
+        
         }
     }
 
@@ -538,8 +625,8 @@ public class MainWindow : Window, IDisposable
 
                 // Update timestamps
                 DateTime now = DateTime.Now;
-                lastUpdateTime = now.ToString("MM/dd/yyyy HH:mm:ss tt");
-                lastFetchTime = now.ToString("MM/dd/yyyy HH:mm:ss tt");
+                lastUpdateTime = now.ToString("dd/MM/yyyy HH:mm:ss tt");
+                lastFetchTime = now.ToString("dd/MM/yyyy HH:mm:ss tt");
             }
         }
         catch (Exception ex)
@@ -619,7 +706,7 @@ public class MainWindow : Window, IDisposable
     }
 }
 
-// Helper classes for JSON deserialization
+// Helper classes for JSON deserialisation
 public class UniversalisResponse
 {
     public uint ItemID { get; set; }

@@ -27,7 +27,6 @@ public class ConfigWindow : Window, IDisposable
         ImGui.TextUnformatted("Market Analysis Configuration");
         ImGui.Separator();
 
-        // Add your configuration options here
         ImGui.TextUnformatted("Configuration options will be added here.");
 
         ImGui.Separator();

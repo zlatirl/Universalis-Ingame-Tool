@@ -14,6 +14,7 @@ namespace MarketAnalysisPlugin
         public int NotificationFrequency { get; set; } = 60; // Minutes
         public float PriceAlertThreshold { get; set; } = 20; // Percentage
         public List<string> SubscribedItems { get; set; } = new List<string>();
+        public string SelectedWorld { get; internal set; }
 
         // The below exist just to make saving less cumbersome
         [NonSerialized]
