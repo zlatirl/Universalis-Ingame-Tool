@@ -58,7 +58,7 @@ namespace MarketAnalysisPlugin
             PluginInterface.UiBuilder.Draw += DrawUI;
             PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
 
-            // Register the main UI callback - THIS IS THE FIX
+            // Register the main UI callback
             PluginInterface.UiBuilder.OpenMainUi += DrawMainUI;
         }
 
