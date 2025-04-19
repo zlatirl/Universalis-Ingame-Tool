@@ -46,7 +46,7 @@ Note that you only need to add it to the Dev Plugin Locations once (Step 1); it 
 
 ### Development
 
-This plguin is built on the Dalamud Plugin framework. To either contribute or make your own plugin:
+This plugin is built on the Dalamud Plugin framework. To either contribute or make your own plugin:
 
 For this plugin:
   1. Clone the repository
@@ -56,7 +56,8 @@ For this plugin:
 
 To make your own plugin:
   1. Go to [SamplePlugin](https://github.com/goatcorp/SamplePlugin) repository and follow the steps there.
-  * For information about Dalamud plugin development, see the [Dalamud Developer Docs](https://dalamud.dev/).
+
+  For information about Dalamud plugin development, see the [Dalamud Developer Docs](https://dalamud.dev/).
 
 ## Acknowledgements
 
