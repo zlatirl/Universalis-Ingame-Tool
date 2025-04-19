@@ -53,6 +53,7 @@ For this plugin:
   2. Setup your development environment with .NET Core 8 SDK
   3. Make changes as you wish - then build the solution
   4. Follow steps from Activating in-game to test your changes in-game
+
 To make your own plugin:
   1. Go to [SamplePlugin](https://github.com/goatcorp/SamplePlugin) repository and follow the steps there.
     * For information about Dalamud plugin development, see the [Dalamud Developer Docs](https://dalamud.dev/).
