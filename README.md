@@ -55,7 +55,7 @@ For this plugin:
   4. Follow steps from Activating in-game to test your changes in-game
 
 To make your own plugin:
-  1. Go to [SamplePlugin](https://github.com/goatcorp/SamplePlugin) repository and follow the steps there.
+  1. Go to [SamplePlugin](https://github.com/goatcorp/SamplePlugin) repository and follow the steps there
 
   For information about Dalamud plugin development, see the [Dalamud Developer Docs](https://dalamud.dev/).
 
