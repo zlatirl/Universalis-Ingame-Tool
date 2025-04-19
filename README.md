@@ -56,9 +56,9 @@ For this plugin:
 
 To make your own plugin:
   1. Go to [SamplePlugin](https://github.com/goatcorp/SamplePlugin) repository and follow the steps there.
-    * For information about Dalamud plugin development, see the [Dalamud Developer Docs](https://dalamud.dev/).
+  * For information about Dalamud plugin development, see the [Dalamud Developer Docs](https://dalamud.dev/).
 
-### Acknowledgements
+## Acknowledgements
 
 * Market data provided by [Universalis](https://universalis.app/)
 * Built using the Dalamud plugin framework
